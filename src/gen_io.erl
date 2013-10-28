@@ -1,9 +1,16 @@
--module(gen_io_srv).
+
+-module(gen_io).
+
 -behaviour(gen_server).
 
+-include("gen_io.hrl").
+
 -record(state, {
-    module,
-    state
+    % the module we are wrapping with gen_io
+    module :: atom(),
+
+    % the state of the module we're wrapping
+    state  :: any()
 }).
 
 %% ------------------------------------------------------------------
@@ -13,7 +20,7 @@
 -export(
     [
     child_spec/1,
-    start_link/2
+    start_link/1
     ]).
 
 %% ------------------------------------------------------------------
@@ -22,60 +29,57 @@
 
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
--record(gen_io_spec, {
-    module              :: atom(), 
-
-    spec_id             :: atom(),
-
-    args = []           :: list(),
-
-    shutdown = 5000     :: integer(),
-
-    registered_name     :: atom()
-}).
-
 %% ------------------------------------------------------------------
 %% API Function Definitions
 %% ------------------------------------------------------------------
 
-child_spec(#gen_io_spec{ module = Module, shutdown = Shutdown } = Spec) ->
+-spec child_spec(#gen_io_spec{}) -> supervisor:child_spec().
+child_spec(#gen_io_spec{ spec_id = Id, shutdown = Shutdown } = Spec) ->
     {
         ?MODULE, 
-        {?MODULE, start_link, [{Module, Spec}]},
+        {?MODULE, start_link, [Spec]},
         permanent, 
         Shutdown, 
         worker, 
         [?MODULE]
     }.
 
-start_link(Module, #gen_io_spec{ args = Args } = Spec) ->
-    io:format("gen_io_srv:start_link Module is ~p~n", [Module]),
-    gen_server:start_link(?MODULE, Args, []).
+start_link(#gen_io_spec{ registered_name = Name, args = Args } = Spec) ->
+    try
+        case Name of
+            undefined -> gen_server:start_link(?MODULE, Spec, []);
+            Name      -> gen_server:start_link(Name, ?MODULE, Spec, [])
+        end
+    catch
+        C:R -> error_logger:error_msg("ERROR starting ~p ~p:~p ~p~n", [Spec, C, R, erlang:get_stacktrace()])
+    end.
+
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
-%application:start(gen_io).
-init([Module]) when is_atom(Module) ->
-    io:format("Init Module is ~p", [Module]),
-    {ok, State} = Module:init([]),
-    {ok, #state{ module = Module, state = State }};
-init({Module, Args}) when is_atom(Module) ->
-    io:format("Init Module is ~p", [Module]),
+
+init(#gen_io_spec{ module = Module, args = Args }) when is_atom(Module) ->
     {ok, State} = Module:init(Args),
     {ok, #state{ module = Module, state = State }}.
 
-handle_call(_Request, _From, State) ->
-    io:format("gen_io_srv:handle_call ~p~n", [State]),
+handle_call(Request, From, #state{ module = M, state = S0 } = State) ->
+    S1 = case M:handle_call(Request, From, S0) of 
+        {reply, S1}           -> S1;
+        {reply, {io, IO}, S1} -> process_io(M, IO), S1
+    end,
 
-    {reply, ok, State}.
+    {noreply, State#state{ state = S1 }}.
 
-handle_cast(_Msg, State) ->
-    io:format("gen_io_srv:handle_cast ~p~n", [State]),
-    {noreply, State}.
+handle_cast(Msg, #state{ module = M, state = S0 } = State) ->
+    S1 = case M:handle_cast(Msg, S0) of 
+        {noreply, S1}           -> S1;
+        {noreply, {io, IO}, S1} -> process_io(M, IO), S1
+    end,
+
+    {noreply, State#state{ state = S1 }}.
 
 handle_info(Info, #state{ module = M, state = S0 } = State) ->
-    io:format("gen_io_srv:handle_info ~p~n", [State]),
     S1 = case M:handle_info(Info, S0) of 
         {noreply, S1}           -> S1;
         {noreply, {io, IO}, S1} -> process_io(M, IO), S1
@@ -83,11 +87,12 @@ handle_info(Info, #state{ module = M, state = S0 } = State) ->
 
     {noreply, State#state{ state = S1 }}.
 
-terminate(_Reason, _State) ->
-    ok.
+terminate(Reason, #state{ module = M, state = S }) ->
+    M:terminate(Reason, S).
 
-code_change(_OldVsn, State, _Extra) ->
-    {ok, State}.
+code_change(OldVsn, #state{ module = M, state = S0 } = State, Extra) ->
+    {ok, S1} = M:code_change(OldVsn, S0, Extra),
+    {ok, State#state{ state = S1 }}.
 
 %% ------------------------------------------------------------------
 %% Internal Function Definitions

@@ -6,7 +6,10 @@
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/1, process_io/1]).
+-export(
+    [
+    process_io/1
+    ]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
@@ -16,19 +19,7 @@
          terminate/2, code_change/3]).
 
 %% ------------------------------------------------------------------
-%% API Function Definitions
-%% ------------------------------------------------------------------
-
-start_link(Module) ->
-    io:format("gen_io_tester:start_link ~p~n", [Module]),
-    try gen_server:start_link({local, ?SERVER}, gen_io_srv, [Module], []) of 
-        Result -> io:format("gen_io_tester:start_link RESULT ~p~n", [Result]), Result
-    catch
-        C:R -> io:format("gen_io_tester:start_link ERROR ~p:~p~n", [C, R])
-    end.
-
-%% ------------------------------------------------------------------
-%% gen_server Function Definitions
+%% gen_server/gen_io Function Definitions
 %% ------------------------------------------------------------------
 
 init(Args) ->

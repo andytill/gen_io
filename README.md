@@ -40,4 +40,4 @@ gen_io is an a very experimental state although the prototype is fully working.
 
 ## About
 
-This project was inspired by the [Purely Functional I/O](http://www.infoq.com/presentations/io-functional-side-effects?utm_source=infoq&utm_medium=videos_homepage&utm_campaign=videos_row3) presentation, it is well worth watching to get a quick start on IO in functional programming by [Rúnar Óli](https://twitter.com/runarorama).
+This project was inspired by the [Purely Functional I/O](http://www.infoq.com/presentations/io-functional-side-effects?utm_source=infoq&utm_medium=videos_homepage&utm_campaign=videos_row3) presentation by [Rúnar Óli](https://twitter.com/runarorama).  It is well worth watching to get a quick start on IO in functional programming.
